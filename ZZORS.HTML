@@ -1,0 +1,496 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Zoo Zeke Parade – Orbital Station (Routes)</title>
+  <!--
+    Zoo Zeke Parade – GitHub Pages Ready, Single-File App with Hash Routing
+
+    Why hash routing?
+    - GitHub Pages is static hosting and doesn’t support server-side rewrites.
+    - Using URL hashes (e.g., https://yourname.github.io/zzp/#/archives) keeps navigation working on refresh.
+
+    Features
+    - Access Terminal: enter clearance code (A-0000 .. D-0000)
+    - Hash Router: #/access, #/map, #/archives, #/lab, #/command, #/vault, #/market, #/hangar
+    - Clearance Gating: routes enforce minimum levels, with smooth animated transitions
+    - Station Map: shows department cards and locks
+    - Department Pages: real sections with unique content placeholders
+    - Download Snapshot: one-click TXT download
+    - Fully documented, no external libraries
+
+    Quick Test
+    1) Go to #/access or just load the page
+    2) Enter a code (e.g., B-0000) → Initialize Access
+    3) Click a department; or navigate directly to #/lab
+
+    Clearance
+      A Visitor, B Researcher, C Commander, D Director
+
+    Design note: Futuristic, glassy, cosmic with starfield and holographic grid.
+  -->
+  <style>
+    :root {
+      --bg: #05060b; --ink: #e6f6ff; --muted: #9fb3c8; --accent: #59f0ff; --accent-2: #8b5cf6;
+      --success: #00ffaa; --danger: #ff4d6d; --glass: rgba(255,255,255,0.06); --glass-2: rgba(255,255,255,0.12); --grid: rgba(255,255,255,0.05);
+      --blur: 10px;
+    }
+    * { box-sizing: border-box; }
+    html, body { height: 100%; }
+    body { margin:0; font-family: ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Ubuntu, Cantarell, Noto Sans, Helvetica, Arial; color: var(--ink);
+      background: radial-gradient(1200px 800px at 70% 15%, #0b1120 0%, var(--bg) 55%); overflow-x: hidden; }
+
+    canvas#starfield { position: fixed; inset: 0; z-index: -2; }
+    .grid-overlay { position: fixed; inset: 0; z-index: -1; pointer-events:none; background-image: linear-gradient(var(--grid) 1px, transparent 1px), linear-gradient(90deg, var(--grid) 1px, transparent 1px); background-size: 40px 40px; mask-image: radial-gradient(80% 50% at 50% 40%, rgba(0,0,0,0.7), transparent 70%); }
+
+    header { position: sticky; top:0; z-index: 20; background: linear-gradient(180deg, rgba(5,6,11,0.9), rgba(5,6,11,0.4)); backdrop-filter: blur(var(--blur)); border-bottom: 1px solid var(--glass-2); }
+    .container { width: min(1200px, 92%); margin-inline: auto; }
+    .topbar { display:flex; align-items:center; justify-content: space-between; gap: 12px; padding: 12px 0; }
+    .brand { display:flex; gap:12px; align-items:center; }
+    .badge { width: 36px; height: 36px; border-radius: 10px; background: conic-gradient(from 210deg, var(--accent), var(--accent-2), var(--accent)); box-shadow: 0 0 20px #59f0ff44, inset 0 0 20px #8b5cf633; }
+    .brand h1 { font-size: 18px; margin:0; letter-spacing: 0.06em; }
+    .pulse { color: var(--muted); font-size: 12px; letter-spacing: 0.2em; }
+
+    nav .link { color: var(--ink); text-decoration: none; padding: 8px 10px; border: 1px solid var(--glass-2); border-radius: 10px; background: rgba(255,255,255,0.04); margin-left: 8px; display:inline-flex; align-items:center; gap: 8px; }
+    nav .link[aria-disabled="true"] { opacity: 0.5; cursor: not-allowed; }
+    nav .link.active { border-color: var(--accent); box-shadow: 0 0 18px #59f0ff22; }
+
+    .cta { display:inline-flex; gap:8px; align-items:center; padding: 10px 14px; border: 1px solid var(--glass-2); border-radius: 12px; background: linear-gradient(90deg, rgba(137,255,238,0.15), rgba(89,240,255,0.15)); color: var(--ink); cursor: pointer; }
+
+    main { position: relative; }
+
+    /* Route view container with smooth transitions */
+    .view { width: 100%; padding: 28px 0 36px; min-height: 60vh; opacity: 0; transform: translateY(6px) scale(0.995); transition: opacity 260ms ease, transform 320ms ease; }
+    .view.active { opacity: 1; transform: translateY(0) scale(1); }
+
+    .terminal { background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.02)); border: 1px solid var(--glass-2); border-radius: 16px; padding: 16px; position: relative; overflow: hidden; box-shadow: inset 0 0 80px #59f0ff08; }
+    .title { font-size: 12px; color: var(--muted); letter-spacing: 0.2em; text-transform: uppercase; }
+    .lcd { margin-top: 12px; margin-bottom: 12px; padding: 12px; border-radius: 12px; background: #03040a; border:1px solid #0c1220; min-height: 60px; font-family: ui-monospace, Menlo, Consolas, "Courier New", monospace; color: #9de2ff; text-shadow: 0 0 6px #59f0ff44; }
+
+    .input { flex: 1 1 220px; padding: 12px 12px; border-radius: 12px; border: 1px solid var(--glass-2); background: rgba(0,0,0,0.35); color: var(--ink); outline: none; }
+    .go { padding: 12px 16px; border-radius: 12px; border: 1px solid var(--glass-2); background: linear-gradient(90deg, #00ffaa22, #59f0ff22); color: var(--ink); cursor: pointer; }
+
+    .section h3 { margin: 6px 0 14px; font-size: 18px; letter-spacing: 0.1em; color: var(--muted); text-transform: uppercase; }
+    .map-grid { display: grid; grid-template-columns: repeat(12, 1fr); gap: 16px; }
+    .card { grid-column: span 4; min-height: 180px; background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.02)); border: 1px solid var(--glass-2); border-radius: 16px; overflow: hidden; position: relative; display:flex; flex-direction: column; transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease; }
+    .card:hover { transform: translateY(-2px); box-shadow: 0 10px 38px #00000072, inset 0 0 80px #8b5cf60e; border-color: var(--accent-2); }
+    .card .img { height: 120px; background: radial-gradient(400px 180px at 60% 20%, rgba(137,255,238,0.15), transparent), linear-gradient(180deg, rgba(255,255,255,0.04), transparent); display: grid; place-items: center; }
+    .card .img img { width: 80%; height: 80%; object-fit: cover; filter: hue-rotate(20deg) saturate(1.3) contrast(1.1); opacity: 0.9; }
+    .card .body { padding: 12px; display:flex; justify-content: space-between; align-items:center; gap: 10px; }
+    .level { font-size: 12px; color: var(--muted); }
+    .enter { padding: 8px 12px; border-radius: 10px; border: 1px solid var(--glass-2); background: rgba(137,255,238,0.08); color: var(--ink); cursor: pointer; }
+    .enter[disabled] { opacity: 0.45; cursor: not-allowed; }
+
+    .pill { padding: 6px 10px; border-radius: 999px; background: rgba(255,255,255,0.06); border: 1px solid var(--glass-2); font-size: 12px; color: var(--muted); }
+
+    footer { padding: 36px 0 72px; color: var(--muted); text-align: center; }
+
+    @media (max-width: 960px){ .card { grid-column: span 6; } }
+    @media (max-width: 600px){ .card { grid-column: span 12; } }
+  </style>
+</head>
+<body>
+  <canvas id="starfield"></canvas>
+  <div class="grid-overlay"></div>
+
+  <header>
+    <div class="container topbar">
+      <div class="brand">
+        <div class="badge" aria-hidden="true"></div>
+        <div>
+          <h1>Zoo Zeke Parade</h1>
+          <div class="pulse">Orbital Research Station</div>
+        </div>
+      </div>
+      <nav>
+        <!-- NOTE: nav buttons will be enabled/disabled based on clearance -->
+        <a class="link" data-nav="#/access" href="#/access">Access</a>
+        <a class="link" data-nav="#/map" href="#/map">Map</a>
+        <a class="link" data-nav="#/archives" href="#/archives">Archives</a>
+        <a class="link" data-nav="#/lab" href="#/lab">Lab</a>
+        <a class="link" data-nav="#/command" href="#/command">Command</a>
+        <a class="link" data-nav="#/vault" href="#/vault">Vault</a>
+        <a class="link" data-nav="#/market" href="#/market">Marketplace</a>
+        <a class="link" data-nav="#/hangar" href="#/hangar">Hangar</a>
+        <button id="downloadBtn" class="link" title="Download Snapshot (mock)">⬇ Snapshot</button>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- ROUTE: ACCESS -->
+    <section id="view-access" class="view">
+      <div class="terminal" aria-label="Security Terminal">
+        <div class="title">Access Control</div>
+        <div id="lcd" class="lcd">System idle. Awaiting user initialization…</div>
+        <form id="accessForm" autocomplete="off" style="display:flex; gap:10px; flex-wrap: wrap;">
+          <input id="accessCode" class="input" name="code" placeholder="Enter access code (A-0000, B-0000, C-0000, D-0000)" />
+          <button class="go" type="submit">Initialize Access</button>
+        </form>
+        <div class="pill" style="margin-top:8px;">Demo codes: A-0000 (Visitor), B-0000 (Researcher), C-0000 (Commander), D-0000 (Director)</div>
+        <div style="margin-top:8px; display:flex; gap:10px; flex-wrap:wrap;">
+          <span class="pill">Clearance: <strong id="clearanceChip">None</strong></span>
+          <span class="pill">Specimens Indexed: 128</span>
+          <span class="pill">Uptime: <span id="uptime">0:00</span></span>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROUTE: MAP -->
+    <section id="view-map" class="view">
+      <div class="section">
+        <h3>Station Map / Department Overview</h3>
+        <div id="mapGrid" class="map-grid">
+          <!-- Archives (A) open to all -->
+          <article class="card" data-min-level="A">
+            <div class="img"><img src="https://placehold.co/600x240/0b1220/59f0ff/PNG?text=Archives+%2F+Museum" alt="Archives" /></div>
+            <div class="body">
+              <div>
+                <div class="title">Archives / Museum</div>
+                <div class="level">Access: Open (A)</div>
+              </div>
+              <a href="#/archives" class="enter">Enter</a>
+            </div>
+          </article>
+
+          <!-- Lab (B) -->
+          <article class="card" data-min-level="B">
+            <div class="img"><img src="https://placehold.co/600x240/0b1220/8b5cf6/PNG?text=Research+Lab" alt="Lab" /></div>
+            <div class="body">
+              <div>
+                <div class="title">Research Lab</div>
+                <div class="level">Access: Researcher (B)</div>
+              </div>
+              <a href="#/lab" class="enter">Enter</a>
+            </div>
+          </article>
+
+          <!-- Command (C) -->
+          <article class="card" data-min-level="C">
+            <div class="img"><img src="https://placehold.co/600x240/0b1220/94f/PNG?text=Command+Deck" alt="Command" /></div>
+            <div class="body">
+              <div>
+                <div class="title">Command Deck</div>
+                <div class="level">Access: Commander (C)</div>
+              </div>
+              <a href="#/command" class="enter">Enter</a>
+            </div>
+          </article>
+
+          <!-- Vault (D) -->
+          <article class="card" data-min-level="D">
+            <div class="img"><img src="https://placehold.co/600x240/0b1220/f59/PNG?text=Director's+Vault" alt="Vault" /></div>
+            <div class="body">
+              <div>
+                <div class="title">Director's Vault</div>
+                <div class="level">Access: Director (D)</div>
+              </div>
+              <a href="#/vault" class="enter">Enter</a>
+            </div>
+          </article>
+
+          <!-- Marketplace (B) simulated -->
+          <article class="card" data-min-level="B">
+            <div class="img"><img src="https://placehold.co/600x240/0b1220/0ff/PNG?text=NFT+Marketplace" alt="Marketplace" /></div>
+            <div class="body">
+              <div>
+                <div class="title">NFT Marketplace</div>
+                <div class="level">Access: Researcher+ (B)</div>
+              </div>
+              <a href="#/market" class="enter">Enter</a>
+            </div>
+          </article>
+
+          <!-- Hangar (A) -->
+          <article class="card" data-min-level="A">
+            <div class="img"><img src="https://placehold.co/600x240/0b1220/aff/PNG?text=Specimen+Hangar" alt="Hangar" /></div>
+            <div class="body">
+              <div>
+                <div class="title">Specimen Hangar</div>
+                <div class="level">Access: Visitor+ (A)</div>
+              </div>
+              <a href="#/hangar" class="enter">Enter</a>
+            </div>
+          </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROUTES: DEPARTMENTS (real sections) -->
+    <section id="view-archives" class="view">
+      <div class="terminal">
+        <div class="title">Archives / Museum</div>
+        <div class="lcd">Curated records of multiversal entities. Public terminals available. Browse exhibits, playback field logs, and download open data capsules.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="cta" href="#/map">⟵ Back to Map</a>
+          <button class="cta" onclick="alert('Downloading Exhibit Index (mock).')">⬇ Download Exhibit Index</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-lab" class="view" data-min-level="B">
+      <div class="terminal">
+        <div class="title">Research Lab</div>
+        <div class="lcd">Analyze spectral signatures, morphology variants, and cross-domain behaviors. Instruments are sandboxed in this demo.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="cta" href="#/map">⟵ Back to Map</a>
+          <button class="cta" onclick="alert('Running spectral analysis (mock)…')">Run Analysis</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-command" class="view" data-min-level="C">
+      <div class="terminal">
+        <div class="title">Command Deck</div>
+        <div class="lcd">Mission directives and station telemetry. Route logistics, approve expeditions, and monitor interlink beacons.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="cta" href="#/map">⟵ Back to Map</a>
+          <button class="cta" onclick="alert('Expedition queued (mock).')">Queue Expedition</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-vault" class="view" data-min-level="D">
+      <div class="terminal">
+        <div class="title">Director's Vault</div>
+        <div class="lcd">Sealed dossiers and prime artifacts. All operations are simulated in this build.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="cta" href="#/map">⟵ Back to Map</a>
+          <button class="cta" onclick="alert('Decrypting (mock)…')">Decrypt File</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-market" class="view" data-min-level="B">
+      <div class="terminal">
+        <div class="title">NFT Marketplace (Simulated)</div>
+        <div class="lcd">Trade simulated tokens representing entities. Wallet integration is planned; for now, interactions are non-binding.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="cta" href="#/map">⟵ Back to Map</a>
+          <button class="cta" onclick="alert('Offer placed (mock).')">Place Offer</button>
+        </div>
+      </div>
+    </section>
+
+    <section id="view-hangar" class="view" data-min-level="A">
+      <div class="terminal">
+        <div class="title">Specimen Hangar</div>
+        <div class="lcd">Docked habitats and observation pods. Walkthroughs available with dynamic holograms.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="cta" href="#/map">⟵ Back to Map</a>
+          <button class="cta" onclick="alert('Launching hologram (mock).')">Launch Hologram</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ROUTE: DENIED (shown if insufficient clearance) -->
+    <section id="view-denied" class="view">
+      <div class="terminal">
+        <div class="title">Access Denied</div>
+        <div class="lcd" id="deniedMsg">Insufficient clearance for the requested deck. Acquire proper authorization.</div>
+        <div style="display:flex; gap:10px; flex-wrap:wrap;">
+          <a class="cta" href="#/access">⟵ Access Terminal</a>
+          <a class="cta" href="#/map">Station Map</a>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="container">© 2025 Zoo Zeke Parade · Route build v0.1.0</div>
+  </footer>
+
+  <script>
+    // =============================================
+    // STARFIELD BACKGROUND
+    // =============================================
+    (function starfield() {
+      const c = document.getElementById('starfield');
+      const ctx = c.getContext('2d');
+      let w, h, stars = [];
+      const STAR_COUNT = 160;
+      function resize() {
+        w = c.width = window.innerWidth; h = c.height = window.innerHeight;
+        if (stars.length === 0) {
+          for (let i = 0; i < STAR_COUNT; i++) {
+            stars.push({ x: Math.random()*w, y: Math.random()*h, z: Math.random()*0.8+0.2, v: Math.random()*0.4+0.2 });
+          }
+        }
+      }
+      window.addEventListener('resize', resize); resize();
+      function tick() {
+        ctx.clearRect(0,0,w,h);
+        for (const s of stars) {
+          s.x += s.v * s.z; if (s.x > w) { s.x = 0; s.y = Math.random()*h; }
+          const size = s.z*2; ctx.fillStyle = `rgba(137,255,238,${0.25 + s.z*0.5})`; ctx.fillRect(s.x, s.y, size, size);
+        }
+        requestAnimationFrame(tick);
+      }
+      tick();
+    })();
+
+    // =============================================
+    // ACCESS + CLEARANCE
+    // =============================================
+    const clearanceMap = { 'A': { rank:1, label:'Visitor' }, 'B': { rank:2, label:'Researcher' }, 'C': { rank:3, label:'Commander' }, 'D': { rank:4, label:'Director' } };
+    let currentClearance = null; // { code, level, rank, label }
+
+    const accessForm = document.getElementById('accessForm');
+    const accessCodeInput = document.getElementById('accessCode');
+    const lcd = document.getElementById('lcd');
+    const clearanceChip = document.getElementById('clearanceChip');
+
+    function setLCD(message, isError=false){ if(!lcd) return; lcd.textContent = message; lcd.style.color = isError ? '#ffb3c1' : '#9de2ff'; lcd.style.textShadow = isError ? '0 0 6px #ff4d6d55' : '0 0 6px #59f0ff44'; }
+
+    if (accessForm) {
+      accessForm.addEventListener('submit', (e) => {
+        e.preventDefault();
+        const raw = (accessCodeInput.value||'').trim().toUpperCase();
+        if (!raw) return setLCD('No input detected. Try A-0000, B-0000, C-0000, or D-0000.', true);
+        const level = raw[0]; const meta = clearanceMap[level];
+        if (!meta) return setLCD(`Invalid prefix "${level}". Use A/B/C/D.`, true);
+        if (!/^([ABCD])-\d{4}$/.test(raw)) return setLCD('Code format must be like X-0000. Example: B-0000', true);
+        currentClearance = { code: raw, level, rank: meta.rank, label: meta.label };
+        localStorage.setItem('zzp_clearance', JSON.stringify(currentClearance));
+        clearanceChip.textContent = `${meta.label} (${level})`;
+        setLCD(`Access granted: ${meta.label}.`);
+        // After successful auth, go to map for clear next step
+        location.hash = '#/map';
+      });
+    }
+
+    // Restore clearance from localStorage (so refresh on GitHub Pages keeps state)
+    (function restore(){
+      try {
+        const saved = JSON.parse(localStorage.getItem('zzp_clearance')||'null');
+        if (saved && clearanceMap[saved.level]) {
+          currentClearance = saved; if (clearanceChip) clearanceChip.textContent = `${saved.label} (${saved.level})`;
+          if (lcd) setLCD(`Session restored. Clearance: ${saved.label}.`);
+        }
+      } catch(_){}
+    })();
+
+    // =============================================
+    // ROUTER (hash-based for GitHub Pages)
+    // =============================================
+    const routes = {
+      '/access': { el: document.getElementById('view-access') },
+      '/map': { el: document.getElementById('view-map') },
+      '/archives': { el: document.getElementById('view-archives'), min: 'A' },
+      '/lab': { el: document.getElementById('view-lab'), min: 'B' },
+      '/command': { el: document.getElementById('view-command'), min: 'C' },
+      '/vault': { el: document.getElementById('view-vault'), min: 'D' },
+      '/market': { el: document.getElementById('view-market'), min: 'B' },
+      '/hangar': { el: document.getElementById('view-hangar'), min: 'A' },
+      '/denied': { el: document.getElementById('view-denied') },
+    };
+
+    function getPath(){
+      const h = location.hash || '#/access';
+      // Normalize like #/archives → /archives
+      const path = h.startsWith('#') ? h.slice(1) : h; // remove '#'
+      return path || '/access';
+    }
+
+    function hasClearanceFor(minLevel){
+      if (!minLevel) return true; // no restriction
+      const min = clearanceMap[minLevel].rank; const rank = currentClearance?.rank || 1; // guests treated as A
+      return rank >= min;
+    }
+
+    function activate(el){
+      document.querySelectorAll('.view').forEach(v => v.classList.remove('active'));
+      if (el) el.classList.add('active');
+      // Update nav active state
+      document.querySelectorAll('nav .link').forEach(a => a.classList.toggle('active', a.getAttribute('href') === location.hash));
+      // Gate nav buttons
+      gateNavLinks();
+      // If we landed on map, adjust card locks
+      if (el && el.id === 'view-map') updateMapLocks();
+      // Scroll to top for clean transition
+      window.scrollTo({ top: 0, behavior: 'smooth' });
+    }
+
+    function gateNavLinks(){
+      document.querySelectorAll('nav .link[data-nav]').forEach(a => {
+        const target = a.getAttribute('data-nav').replace('#','');
+        const def = routes[target];
+        if (!def || !def.min) { a.removeAttribute('aria-disabled'); return; }
+        const ok = hasClearanceFor(def.min);
+        a.setAttribute('aria-disabled', ok ? 'false' : 'true');
+        if (!ok) a.onclick = (e)=>{ e.preventDefault(); deniedFor(def.min); };
+        else a.onclick = null;
+      });
+    }
+
+    function deniedFor(minLevel){
+      const meta = clearanceMap[minLevel];
+      const msg = document.getElementById('deniedMsg');
+      if (msg) msg.textContent = `This deck requires ${meta.label} (${minLevel}) clearance or higher.`;
+      location.hash = '#/denied';
+    }
+
+    function router(){
+      const path = getPath();
+      const def = routes[path];
+      if (!def) { location.hash = '#/access'; return; }
+      if (def.min && !hasClearanceFor(def.min)) { deniedFor(def.min); return; }
+      activate(def.el);
+    }
+
+    window.addEventListener('hashchange', router);
+    router(); // initial
+
+    // =============================================
+    // MAP: lock/unlock buttons & visuals based on clearance
+    // =============================================
+    function updateMapLocks(){
+      const cards = document.querySelectorAll('#view-map [data-min-level]');
+      cards.forEach(card => {
+        const minLevel = card.getAttribute('data-min-level');
+        const minRank = clearanceMap[minLevel].rank;
+        const allowed = (currentClearance?.rank || 1) >= minRank; // guest=1
+        const a = card.querySelector('a.enter');
+        if (a) {
+          if (!allowed) {
+            a.setAttribute('aria-disabled','true');
+            a.addEventListener('click', interceptToDenied);
+          } else {
+            a.removeAttribute('aria-disabled');
+            a.removeEventListener('click', interceptToDenied);
+          }
+        }
+        card.style.filter = allowed ? 'none' : 'grayscale(0.6) contrast(0.85)';
+        card.style.opacity = allowed ? '1' : '0.75';
+      });
+    }
+
+    function interceptToDenied(e){
+      e.preventDefault();
+      const card = e.currentTarget.closest('[data-min-level]');
+      const minLevel = card.getAttribute('data-min-level');
+      deniedFor(minLevel);
+    }
+
+    // =============================================
+    // SNAPSHOT DOWNLOAD (TXT)
+    // =============================================
+    document.getElementById('downloadBtn').addEventListener('click', () => {
+      const label = currentClearance ? currentClearance.label : 'Guest';
+      const code = currentClearance ? currentClearance.code : 'N/A';
+      const blob = new Blob([
+        `Zoo Zeke Parade – Snapshot\nDate: ${new Date().toISOString()}\nUser: ${label}\nCode: ${code}\nIndexed Specimens: 128\n`], { type: 'text/plain' });
+      const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'zzp_snapshot.txt'; a.click(); URL.revokeObjectURL(a.href);
+      setLCD('Snapshot downloaded successfully.');
+    });
+
+    // =============================================
+    // UPTIME (cosmetic)
+    // =============================================
+    const boot = Date.now();
+    function formatUptime(ms){ const s = Math.floor(ms/1000); const m = Math.floor(s/60); const r = s%60; return `${m}:${String(r).padStart(2,'0')}`; }
+    setInterval(()=>{ const u = document.getElementById('uptime'); if (u) u.textContent = formatUptime(Date.now()-boot); }, 1000);
+  </script>
+</body>
+</html>
